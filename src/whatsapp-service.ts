@@ -595,11 +595,7 @@ export class WhatsAppService {
         await this.client.pupPage.evaluate(
           (chatId: string) => {
             // @ts-ignore
-            const chat = window.Store.Chat.get(chatId);
-            if (chat) {
-              // @ts-ignore
-              chat.sendStateTyping();
-            }
+            window.WWebJS.sendChatstate('typing', chatId);
           },
           chatId,
         );
