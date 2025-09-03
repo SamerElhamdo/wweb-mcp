@@ -343,18 +343,39 @@ export function routerFactory(client: Client): Router {
    */
   router.post('/groups', async (req: Request, res: Response) => {
     try {
-      const { name, participants } = req.body;
+      const { name, participants, options } = req.body;
 
       if (!name || !participants || !Array.isArray(participants)) {
         res.status(400).json({ error: 'Name and array of participants are required' });
         return;
       }
 
-      const result = await whatsappService.createGroup(name, participants);
+      // Validate options if provided
+      if (options) {
+        if (options.timeout && (typeof options.timeout !== 'number' || options.timeout < 1000)) {
+          res.status(400).json({ error: 'Timeout must be a number greater than 1000ms' });
+          return;
+        }
+        if (options.retries && (typeof options.retries !== 'number' || options.retries < 1 || options.retries > 10)) {
+          res.status(400).json({ error: 'Retries must be a number between 1 and 10' });
+          return;
+        }
+        if (options.retryDelay && (typeof options.retryDelay !== 'number' || options.retryDelay < 100)) {
+          res.status(400).json({ error: 'Retry delay must be a number greater than 100ms' });
+          return;
+        }
+      }
+
+      const result = await whatsappService.createGroup(name, participants, options);
       res.json(result);
     } catch (error) {
       if (error instanceof Error && error.message.includes('not ready')) {
         res.status(503).json({ error: error.message });
+      } else if (error instanceof Error && error.message.includes('timed out')) {
+        res.status(408).json({
+          error: 'Request timeout',
+          details: error.message,
+        });
       } else {
         res.status(500).json({
           error: 'Failed to create group',
@@ -725,6 +746,223 @@ export function routerFactory(client: Client): Router {
       } else {
         res.status(500).json({
           error: 'Failed to send media message',
+          details: String(error),
+        });
+      }
+    }
+  });
+
+  // Send typing state
+  router.post('/send/typing', async (req: Request, res: Response) => {
+    try {
+      const { number } = req.body;
+
+      if (!number) {
+        res.status(400).json({ error: 'Number is required' });
+        return;
+      }
+
+      await whatsappService.sendTypingState(number);
+      res.json({ success: true, message: 'Typing state sent successfully' });
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('not ready')) {
+          res.status(503).json({ error: error.message });
+        } else {
+          res.status(500).json({
+            error: 'Failed to send typing state',
+            details: error.message,
+          });
+        }
+      } else {
+        res.status(500).json({
+          error: 'Failed to send typing state',
+          details: String(error),
+        });
+      }
+    }
+  });
+
+  // Send recording state
+  router.post('/send/recording', async (req: Request, res: Response) => {
+    try {
+      const { number } = req.body;
+
+      if (!number) {
+        res.status(400).json({ error: 'Number is required' });
+        return;
+      }
+
+      await whatsappService.sendRecordingState(number);
+      res.json({ success: true, message: 'Recording state sent successfully' });
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('not ready')) {
+          res.status(503).json({ error: error.message });
+        } else {
+          res.status(500).json({
+            error: 'Failed to send recording state',
+            details: error.message,
+          });
+        }
+      } else {
+        res.status(500).json({
+          error: 'Failed to send recording state',
+          details: String(error),
+        });
+      }
+    }
+  });
+
+  // Send seen state
+  router.post('/send/seen', async (req: Request, res: Response) => {
+    try {
+      const { number } = req.body;
+
+      if (!number) {
+        res.status(400).json({ error: 'Number is required' });
+        return;
+      }
+
+      await whatsappService.sendSeen(number);
+      res.json({ success: true, message: 'Seen state sent successfully' });
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('not ready')) {
+          res.status(503).json({ error: error.message });
+        } else {
+          res.status(500).json({
+            error: 'Failed to send seen state',
+            details: error.message,
+          });
+        }
+      } else {
+        res.status(500).json({
+          error: 'Failed to send seen state',
+          details: String(error),
+        });
+      }
+    }
+  });
+
+  // Send sticker
+  router.post('/send/sticker', async (req: Request, res: Response) => {
+    try {
+      const { number, source } = req.body;
+
+      if (!number || !source) {
+        res.status(400).json({ error: 'Number and source are required' });
+        return;
+      }
+
+      const result = await whatsappService.sendSticker({ number, source });
+      res.json(result);
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('not ready')) {
+          res.status(503).json({ error: error.message });
+        } else {
+          res.status(500).json({
+            error: 'Failed to send sticker',
+            details: error.message,
+          });
+        }
+      } else {
+        res.status(500).json({
+          error: 'Failed to send sticker',
+          details: String(error),
+        });
+      }
+    }
+  });
+
+  // Create and send sticker from image
+  router.post('/send/sticker/create', async (req: Request, res: Response) => {
+    try {
+      const { number, source } = req.body;
+
+      if (!number || !source) {
+        res.status(400).json({ error: 'Number and source are required' });
+        return;
+      }
+
+      const result = await whatsappService.createStickerFromImage({ number, source });
+      res.json(result);
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('not ready')) {
+          res.status(503).json({ error: error.message });
+        } else {
+          res.status(500).json({
+            error: 'Failed to create and send sticker',
+            details: error.message,
+          });
+        }
+      } else {
+        res.status(500).json({
+          error: 'Failed to create and send sticker',
+          details: String(error),
+        });
+      }
+    }
+  });
+
+  // Send voice message (Voice Note)
+  router.post('/send/voice', async (req: Request, res: Response) => {
+    try {
+      const { number, source, duration } = req.body;
+
+      if (!number || !source) {
+        res.status(400).json({ error: 'Number and source are required' });
+        return;
+      }
+
+      const result = await whatsappService.sendVoiceMessage({ number, source, duration });
+      res.json(result);
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('not ready')) {
+          res.status(503).json({ error: error.message });
+        } else {
+          res.status(500).json({
+            error: 'Failed to send voice message',
+            details: error.message,
+          });
+        }
+      } else {
+        res.status(500).json({
+          error: 'Failed to send voice message',
+          details: String(error),
+        });
+      }
+    }
+  });
+
+  // Send audio file (Audio File)
+  router.post('/send/audio', async (req: Request, res: Response) => {
+    try {
+      const { number, source, caption } = req.body;
+
+      if (!number || !source) {
+        res.status(400).json({ error: 'Number and source are required' });
+        return;
+      }
+
+      const result = await whatsappService.sendAudioFile({ number, source, caption });
+      res.json(result);
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('not ready')) {
+          res.status(503).json({ error: error.message });
+        } else {
+          res.status(500).json({
+            error: 'Failed to send audio file',
+            details: error.message,
+          });
+        }
+      } else {
+        res.status(500).json({
+          error: 'Failed to send audio file',
           details: String(error),
         });
       }

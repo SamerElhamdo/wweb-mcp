@@ -98,11 +98,12 @@ export class WhatsAppApiClient {
     }
   }
 
-  async createGroup(name: string, participants: string[]): Promise<CreateGroupResponse> {
+  async createGroup(name: string, participants: string[], options: CreateGroupOptions = {}): Promise<CreateGroupResponse> {
     try {
       const response = await this.axiosInstance.post('/groups', {
         name,
         participants,
+        options,
       });
       return response.data;
     } catch (error) {
@@ -198,6 +199,80 @@ export class WhatsAppApiClient {
       return response.data;
     } catch (error) {
       throw new Error(`Failed to send media message: ${errorToString(error)}`);
+    }
+  }
+
+  async sendTypingState(number: string): Promise<void> {
+    try {
+      await this.axiosInstance.post('/send/typing', { number });
+    } catch (error) {
+      throw new Error(`Failed to send typing state: ${errorToString(error)}`);
+    }
+  }
+
+  async sendRecordingState(number: string): Promise<void> {
+    try {
+      await this.axiosInstance.post('/send/recording', { number });
+    } catch (error) {
+      throw new Error(`Failed to send recording state: ${errorToString(error)}`);
+    }
+  }
+
+  async sendSeen(number: string): Promise<void> {
+    try {
+      await this.axiosInstance.post('/send/seen', { number });
+    } catch (error) {
+      throw new Error(`Failed to send seen state: ${errorToString(error)}`);
+    }
+  }
+
+  async sendSticker({ number, source }: { number: string; source: string }): Promise<SendMessageResponse> {
+    try {
+      const response = await this.axiosInstance.post('/send/sticker', {
+        number,
+        source,
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error(`Failed to send sticker: ${errorToString(error)}`);
+    }
+  }
+
+  async createStickerFromImage({ number, source }: { number: string; source: string }): Promise<SendMessageResponse> {
+    try {
+      const response = await this.axiosInstance.post('/send/sticker/create', {
+        number,
+        source,
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error(`Failed to create and send sticker: ${errorToString(error)}`);
+    }
+  }
+
+  async sendVoiceMessage({ number, source, duration }: { number: string; source: string; duration?: number }): Promise<SendMessageResponse> {
+    try {
+      const response = await this.axiosInstance.post('/send/voice', {
+        number,
+        source,
+        duration,
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error(`Failed to send voice message: ${errorToString(error)}`);
+    }
+  }
+
+  async sendAudioFile({ number, source, caption }: { number: string; source: string; caption?: string }): Promise<SendMediaMessageResponse> {
+    try {
+      const response = await this.axiosInstance.post('/send/audio', {
+        number,
+        source,
+        caption,
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error(`Failed to send audio file: ${errorToString(error)}`);
     }
   }
 }

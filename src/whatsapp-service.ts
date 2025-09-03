@@ -182,42 +182,96 @@ export class WhatsAppService {
     }
   }
 
-  async createGroup(name: string, participants: string[]): Promise<CreateGroupResponse> {
-    try {
-      if (!this.client.info) {
-        throw new Error('WhatsApp client not ready. Please try again later.');
+  async createGroup(name: string, participants: string[], options: CreateGroupOptions = {}): Promise<CreateGroupResponse> {
+    const { timeout = 60000, retries = 3, retryDelay = 2000 } = options;
+    
+    let lastError: Error | null = null;
+    
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        if (!this.client.info) {
+          throw new Error('WhatsApp client not ready. Please try again later.');
+        }
+
+        if (typeof name !== 'string' || name.trim() === '') {
+          throw new Error('Invalid group name');
+        }
+
+        if (!Array.isArray(participants) || participants.length === 0) {
+          throw new Error('At least one participant is required');
+        }
+
+        // Validate participants
+        const validParticipants = participants.filter(p => 
+          typeof p === 'string' && p.trim() !== '' && /^[\d+\-\s()]+$/.test(p.trim())
+        );
+
+        if (validParticipants.length === 0) {
+          throw new Error('No valid phone numbers provided');
+        }
+
+        const formattedParticipants = validParticipants.map(p => 
+          p.includes('@c.us') ? p : `${p.trim()}@c.us`
+        );
+
+        logger.info(`Creating group "${name}" with ${formattedParticipants.length} participants (attempt ${attempt}/${retries})`);
+
+        // Create timeout promise
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => {
+            reject(new Error(`Group creation timed out after ${timeout}ms`));
+          }, timeout);
+        });
+
+        // Create the group with timeout
+        const createGroupPromise = this.client.createGroup(name, formattedParticipants);
+        const result = await Promise.race([createGroupPromise, timeoutPromise]);
+
+        // Handle both string and object return types
+        let groupId = '';
+        let inviteCode = undefined;
+
+        if (typeof result === 'string') {
+          groupId = result;
+        } else if (result && typeof result === 'object') {
+          // Safely access properties
+          groupId = result.gid && result.gid._serialized ? result.gid._serialized : '';
+          inviteCode = (result as { inviteCode?: string }).inviteCode;
+        }
+
+        if (!groupId) {
+          throw new Error('Group creation succeeded but no group ID returned');
+        }
+
+        logger.info(`Group created successfully: ${groupId}`);
+        return {
+          groupId,
+          inviteCode,
+        };
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        
+        logger.warn(`Group creation attempt ${attempt}/${retries} failed: ${lastError.message}`);
+        
+        // Don't retry for certain errors
+        if (lastError.message.includes('not ready') || 
+            lastError.message.includes('Invalid group name') ||
+            lastError.message.includes('No valid phone numbers')) {
+          break;
+        }
+        
+        // If this is not the last attempt, wait before retrying
+        if (attempt < retries) {
+          logger.info(`Waiting ${retryDelay}ms before retry...`);
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+        }
       }
-
-      if (typeof name !== 'string' || name.trim() === '') {
-        throw new Error('Invalid group name');
-      }
-
-      const formattedParticipants = participants.map(p => (p.includes('@c.us') ? p : `${p}@c.us`));
-
-      // Create the group
-      const result = await this.client.createGroup(name, formattedParticipants);
-
-      // Handle both string and object return types
-      let groupId = '';
-      let inviteCode = undefined;
-
-      if (typeof result === 'string') {
-        groupId = result;
-      } else if (result && typeof result === 'object') {
-        // Safely access properties
-        groupId = result.gid && result.gid._serialized ? result.gid._serialized : '';
-        inviteCode = (result as { inviteCode?: string }).inviteCode;
-      }
-
-      return {
-        groupId,
-        inviteCode,
-      };
-    } catch (error) {
-      throw new Error(
-        `Failed to create group: ${error instanceof Error ? error.message : String(error)}`,
-      );
     }
+
+    // If we get here, all retries failed
+    throw new Error(
+      `Failed to create group after ${retries} attempts: ${lastError?.message || 'Unknown error'}`,
+    );
   }
 
   async addParticipantsToGroup(
@@ -564,9 +618,12 @@ export class WhatsAppService {
         );
       }
 
-      // Validate media type (ensure it's an image)
-      if (!media.mimetype.startsWith('image/')) {
-        throw new Error('Only image files are supported at this time');
+      // Validate media type - support all types
+      const supportedTypes = ['image/', 'audio/', 'video/', 'application/', 'text/'];
+      const isSupported = supportedTypes.some(type => media.mimetype.startsWith(type));
+      
+      if (!isSupported) {
+        throw new Error(`Unsupported media type: ${media.mimetype}. Supported types: images, audio, video, documents`);
       }
 
       // Send the media message
@@ -584,6 +641,311 @@ export class WhatsAppService {
     } catch (error) {
       throw new Error(
         `Failed to send media message: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  // Send typing state
+  async sendTypingState(number: string): Promise<void> {
+    try {
+      if (!this.client.info) {
+        throw new Error('WhatsApp client not ready. Please try again later.');
+      }
+
+      if (typeof number !== 'string' || number.trim() === '') {
+        throw new Error('Invalid phone number');
+      }
+
+      const chatId = number.includes('@c.us') ? number : `${number}@c.us`;
+      const chat = await this.client.getChatById(chatId);
+      await chat.sendStateTyping();
+    } catch (error) {
+      throw new Error(
+        `Failed to send typing state: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  // Send recording state
+  async sendRecordingState(number: string): Promise<void> {
+    try {
+      if (!this.client.info) {
+        throw new Error('WhatsApp client not ready. Please try again later.');
+      }
+
+      if (typeof number !== 'string' || number.trim() === '') {
+        throw new Error('Invalid phone number');
+      }
+
+      const chatId = number.includes('@c.us') ? number : `${number}@c.us`;
+      const chat = await this.client.getChatById(chatId);
+      await chat.sendStateRecording();
+    } catch (error) {
+      throw new Error(
+        `Failed to send recording state: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  // Send seen state
+  async sendSeen(number: string): Promise<void> {
+    try {
+      if (!this.client.info) {
+        throw new Error('WhatsApp client not ready. Please try again later.');
+      }
+
+      if (typeof number !== 'string' || number.trim() === '') {
+        throw new Error('Invalid phone number');
+      }
+
+      const chatId = number.includes('@c.us') ? number : `${number}@c.us`;
+      const chat = await this.client.getChatById(chatId);
+      await chat.sendSeen();
+    } catch (error) {
+      throw new Error(
+        `Failed to send seen state: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  // Send sticker
+  async sendSticker({
+    number,
+    source,
+  }: {
+    number: string;
+    source: string;
+  }): Promise<SendMessageResponse> {
+    try {
+      if (!this.client.info) {
+        throw new Error('WhatsApp client not ready. Please try again later.');
+      }
+
+      if (typeof number !== 'string' || number.trim() === '') {
+        throw new Error('Invalid phone number');
+      }
+
+      const chatId = number.includes('@c.us') ? number : `${number}@c.us`;
+
+      // Create MessageMedia for sticker
+      let media: MessageMedia;
+      try {
+        if (source.startsWith('http://') || source.startsWith('https://')) {
+          media = await MessageMedia.fromUrl(source);
+        } else if (source.startsWith('file://')) {
+          const filePath = source.replace(/^file:\/\//, '');
+          media = await MessageMedia.fromFilePath(filePath);
+        } else {
+          throw new Error(
+            'Invalid source format. URLs must use http:// or https:// prefixes, local files must use file:// prefix',
+          );
+        }
+      } catch (error) {
+        throw new Error(
+          `Failed to load sticker from ${source}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+
+      // Send as sticker
+      const result = await this.client.sendMessage(chatId, media, { sendMediaAsSticker: true });
+
+      return {
+        messageId: result.id.id,
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to send sticker: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  // Create sticker from image
+  async createStickerFromImage({
+    number,
+    source,
+  }: {
+    number: string;
+    source: string;
+  }): Promise<SendMessageResponse> {
+    try {
+      if (!this.client.info) {
+        throw new Error('WhatsApp client not ready. Please try again later.');
+      }
+
+      if (typeof number !== 'string' || number.trim() === '') {
+        throw new Error('Invalid phone number');
+      }
+
+      const chatId = number.includes('@c.us') ? number : `${number}@c.us`;
+
+      // Create MessageMedia for image
+      let media: MessageMedia;
+      try {
+        if (source.startsWith('http://') || source.startsWith('https://')) {
+          media = await MessageMedia.fromUrl(source);
+        } else if (source.startsWith('file://')) {
+          const filePath = source.replace(/^file:\/\//, '');
+          media = await MessageMedia.fromFilePath(filePath);
+        } else {
+          throw new Error(
+            'Invalid source format. URLs must use http:// or https:// prefixes, local files must use file:// prefix',
+          );
+        }
+      } catch (error) {
+        throw new Error(
+          `Failed to load image from ${source}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+
+      // Validate it's an image
+      if (!media.mimetype.startsWith('image/')) {
+        throw new Error('Source must be an image file to create a sticker');
+      }
+
+      // Convert to sticker and send
+      const sticker = await this.client.pupPage.evaluate(
+        async (mediaData) => {
+          // @ts-expect-error - Accessing window.WWebJS which is not typed but exists at runtime
+          return await window.WWebJS.Util.formatImageToWebpSticker(mediaData);
+        },
+        media,
+      );
+
+      const result = await this.client.sendMessage(chatId, sticker, { sendMediaAsSticker: true });
+
+      return {
+        messageId: result.id.id,
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to create and send sticker: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  // Send voice message (Voice Note)
+  async sendVoiceMessage({
+    number,
+    source,
+    duration,
+  }: SendVoiceMessageParams): Promise<SendMessageResponse> {
+    try {
+      if (!this.client.info) {
+        throw new Error('WhatsApp client not ready. Please try again later.');
+      }
+
+      if (typeof number !== 'string' || number.trim() === '') {
+        throw new Error('Invalid phone number');
+      }
+
+      const chatId = number.includes('@c.us') ? number : `${number}@c.us`;
+
+      // Create MessageMedia for voice message
+      let media: MessageMedia;
+      try {
+        if (source.startsWith('http://') || source.startsWith('https://')) {
+          media = await MessageMedia.fromUrl(source);
+        } else if (source.startsWith('file://')) {
+          const filePath = source.replace(/^file:\/\//, '');
+          media = await MessageMedia.fromFilePath(filePath);
+        } else {
+          throw new Error(
+            'Invalid source format. URLs must use http:// or https:// prefixes, local files must use file:// prefix',
+          );
+        }
+      } catch (error) {
+        throw new Error(
+          `Failed to load voice message from ${source}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+
+      // Validate it's an audio file
+      if (!media.mimetype.startsWith('audio/')) {
+        throw new Error('Source must be an audio file to send as voice message');
+      }
+
+      // Send as voice message (voice note)
+      const messageOptions: any = { sendMediaAsVoice: true };
+      if (duration) {
+        messageOptions.duration = duration;
+      }
+
+      const result = await this.client.sendMessage(chatId, media, messageOptions);
+
+      return {
+        messageId: result.id.id,
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to send voice message: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  // Send audio file (Audio File)
+  async sendAudioFile({
+    number,
+    source,
+    caption,
+  }: SendAudioFileParams): Promise<SendMediaMessageResponse> {
+    try {
+      if (!this.client.info) {
+        throw new Error('WhatsApp client not ready. Please try again later.');
+      }
+
+      if (typeof number !== 'string' || number.trim() === '') {
+        throw new Error('Invalid phone number');
+      }
+
+      const chatId = number.includes('@c.us') ? number : `${number}@c.us`;
+
+      // Create MessageMedia for audio file
+      let media: MessageMedia;
+      try {
+        if (source.startsWith('http://') || source.startsWith('https://')) {
+          media = await MessageMedia.fromUrl(source);
+        } else if (source.startsWith('file://')) {
+          const filePath = source.replace(/^file:\/\//, '');
+          media = await MessageMedia.fromFilePath(filePath);
+        } else {
+          throw new Error(
+            'Invalid source format. URLs must use http:// or https:// prefixes, local files must use file:// prefix',
+          );
+        }
+      } catch (error) {
+        throw new Error(
+          `Failed to load audio file from ${source}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+
+      // Validate it's an audio file
+      if (!media.mimetype.startsWith('audio/')) {
+        throw new Error('Source must be an audio file');
+      }
+
+      // Send as audio file (not voice message)
+      const messageOptions = caption ? { caption } : undefined;
+      const result = await this.client.sendMessage(chatId, media, messageOptions);
+
+      return {
+        messageId: result.id.id,
+        mediaInfo: {
+          mimetype: media.mimetype,
+          filename: media.filename || 'unknown',
+          size: media.data.length, // Base64 length as approximate size
+        },
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to send audio file: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }

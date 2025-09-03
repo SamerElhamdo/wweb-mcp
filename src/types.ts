@@ -77,3 +77,118 @@ export interface SendMediaMessageResponse extends SendMessageResponse {
     size?: number;
   };
 }
+
+export interface SendStickerParams {
+  number: string;
+  source: string;
+}
+
+export interface CreateStickerFromImageParams {
+  number: string;
+  source: string;
+}
+
+export interface SendVoiceMessageParams {
+  number: string;
+  source: string; // Audio file path or URL
+  duration?: number; // Duration in seconds (optional)
+}
+
+export interface SendAudioFileParams {
+  number: string;
+  source: string; // Audio file path or URL
+  caption?: string; // Optional caption for audio file
+}
+
+export interface CreateGroupOptions {
+  timeout?: number; // Timeout in milliseconds (default: 60000)
+  retries?: number; // Number of retries (default: 3)
+  retryDelay?: number; // Delay between retries in milliseconds (default: 2000)
+}
+
+// Enhanced webhook payload types
+export interface WebhookPayload {
+  from: string;
+  name: string;
+  message: string;
+  isGroup: boolean;
+  timestamp: number;
+  messageId: string;
+  fromMe: boolean;
+  type: string;
+  deviceType: string;
+  isForwarded: boolean;
+  isStarred: boolean;
+  hasQuotedMsg: boolean;
+  hasReaction: boolean;
+  isEphemeral: boolean;
+  messageType: MessageType;
+  content: MessageContent;
+  media?: MediaInfo;
+  quotedMessage?: QuotedMessageInfo;
+  group?: GroupInfo;
+  mentions?: MentionInfo[];
+}
+
+export type MessageType = 
+  | 'text' 
+  | 'image' 
+  | 'video' 
+  | 'audio' 
+  | 'voice' 
+  | 'document' 
+  | 'sticker' 
+  | 'location' 
+  | 'contact' 
+  | 'reaction' 
+  | 'group_invite' 
+  | 'unknown';
+
+export interface MessageContent {
+  text?: string;
+  caption?: string;
+  hasMedia?: boolean;
+  mediaType?: string;
+  duration?: number;
+  isVoiceMessage?: boolean;
+  filename?: string;
+  location?: LocationInfo;
+  contact?: any[];
+  reaction?: string;
+  quotedMessageId?: string;
+  inviteCode?: string;
+  inviteExpiration?: number;
+}
+
+export interface MediaInfo {
+  mimetype: string;
+  filename?: string;
+  filesize?: number;
+  data?: string; // Base64 data
+  error?: string;
+}
+
+export interface QuotedMessageInfo {
+  messageId: string;
+  body: string;
+  type: string;
+  fromMe: boolean;
+}
+
+export interface GroupInfo {
+  id: string;
+  name: string;
+  participants: GroupParticipant[];
+}
+
+export interface MentionInfo {
+  id: string;
+  number: string;
+}
+
+export interface LocationInfo {
+  latitude: number;
+  longitude: number;
+  name?: string;
+  address?: string;
+}
