@@ -595,7 +595,11 @@ export class WhatsAppService {
         await this.client.pupPage.evaluate(
           (chatId: string) => {
             // @ts-ignore
-            window.Store.Chat.get(chatId)?.sendSeen();
+            const chat = window.Store.Chat.get(chatId);
+            if (chat) {
+              // @ts-ignore
+              chat.sendStateTyping();
+            }
           },
           chatId,
         );
@@ -617,7 +621,7 @@ export class WhatsAppService {
             const chat = window.Store.Chat.get(chatId);
             if (chat) {
               // @ts-ignore
-              chat.sendStateRecording();
+              chat.sendPresence('recording');
             }
           },
           chatId,
