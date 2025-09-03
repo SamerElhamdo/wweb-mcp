@@ -124,18 +124,131 @@ export function createWhatsAppClient(config: WhatsAppConfig = {}): Client {
         return;
       }
 
-      // Send to webhook
+      // Determine message type and extract relevant information
+      let messageType = 'text';
+      let messageContent: any = {
+        text: message.body,
+      };
+
+      // Check for different message types
+      if (message.hasMedia) {
+        const media = await message.downloadMedia();
+        if (media) {
+          messageType = media.mimetype?.startsWith('image/') ? 'image' :
+                       media.mimetype?.startsWith('video/') ? 'video' :
+                       media.mimetype?.startsWith('audio/') ? 'audio' :
+                       media.mimetype?.startsWith('application/') ? 'document' :
+                       'media';
+          
+          messageContent = {
+            type: messageType,
+            mimetype: media.mimetype,
+            filename: media.filename || 'unknown',
+            data: media.data, // Base64 data
+            caption: message.body || '',
+          };
+        }
+      } else if (message.type === 'sticker') {
+        messageType = 'sticker';
+        messageContent = {
+          type: 'sticker',
+          text: message.body || '',
+        };
+      } else if (message.type === 'location') {
+        messageType = 'location';
+        messageContent = {
+          type: 'location',
+          latitude: message.location?.latitude,
+          longitude: message.location?.longitude,
+          address: message.location?.address,
+        };
+      } else if (message.type === 'vcard') {
+        messageType = 'contact';
+        messageContent = {
+          type: 'contact',
+          contact: message.vCards || [],
+        };
+      } else if (message.type === 'reaction') {
+        messageType = 'reaction';
+        messageContent = {
+          type: 'reaction',
+          emoji: message.body,
+          quotedMessageId: (message as any).quotedMsgId,
+        };
+      } else if ((message as any).type === 'group_invite') {
+        messageType = 'group_invite';
+        messageContent = {
+          type: 'group_invite',
+          inviteCode: message.inviteV4?.inviteCode,
+          inviteExpiration: (message.inviteV4 as any)?.inviteExpiration,
+          groupName: message.inviteV4?.groupName,
+        };
+      } else {
+        // Default to text message
+        messageContent = {
+          type: 'text',
+          text: message.body,
+        };
+      }
+
+      // Get group information if it's a group message
+      let groupInfo = null;
+      if (isGroup) {
+        try {
+          const chat = await message.getChat();
+          if (chat.isGroup) {
+            groupInfo = {
+              id: chat.id._serialized,
+              name: chat.name,
+              participants: (chat as any).participants?.map((p: any) => ({
+                id: p.id._serialized,
+                name: p.name || p.pushname,
+              })) || [],
+            };
+          }
+        } catch (error) {
+          logger.warn('Failed to get group info:', error);
+        }
+      }
+
+      // Send enhanced webhook payload
       try {
+        const webhookPayload = {
+          // Basic message info
+          messageId: message.id._serialized,
+          timestamp: message.timestamp,
+          from: contact.number,
+          name: contact.pushname,
+          
+          // Message type and content
+          messageType,
+          content: messageContent,
+          
+          // Chat context
+          isGroup,
+          groupInfo,
+          
+          // Additional metadata
+          hasQuotedMessage: !!(message as any).quotedMsgId,
+          quotedMessageId: (message as any).quotedMsgId,
+          forwarded: message.isForwarded,
+          
+          // Raw message data for advanced use cases
+          raw: {
+            type: message.type,
+            from: message.from,
+            to: message.to,
+            body: message.body,
+            hasMedia: message.hasMedia,
+            isForwarded: message.isForwarded,
+            isStatus: message.isStatus,
+            isStarred: message.isStarred,
+          }
+        };
+
         const response = await axios.post(
           webhookConfig.url,
-          {
-            from: contact.number,
-            name: contact.pushname,
-            message: message.body,
-            isGroup,
-            timestamp: message.timestamp,
-            messageId: message.id._serialized,
-          },
+          webhookPayload,
           {
             headers: {
               'Content-Type': 'application/json',
@@ -148,6 +261,8 @@ export function createWhatsAppClient(config: WhatsAppConfig = {}): Client {
 
         if (response.status < 200 || response.status >= 300) {
           logger.warn(`Webhook request failed with status ${response.status}`);
+        } else {
+          logger.debug(`Webhook sent successfully for ${messageType} message from ${contact.number}`);
         }
       } catch (error) {
         logger.error('Error sending webhook:', error);

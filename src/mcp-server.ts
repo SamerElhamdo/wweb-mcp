@@ -628,5 +628,251 @@ export function createMcpServer(config: McpConfig = {}, client: Client | null = 
     },
   );
 
+  // Tool to send typing state
+  server.tool(
+    'send_typing_state',
+    {
+      number: z.string().describe('The phone number to send typing state to'),
+    },
+    async ({ number }) => {
+      try {
+        await service.sendTypingState(number);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Typing state sent successfully to ${number}`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Error sending typing state: ${error}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // Tool to send recording state
+  server.tool(
+    'send_recording_state',
+    {
+      number: z.string().describe('The phone number to send recording state to'),
+    },
+    async ({ number }) => {
+      try {
+        await service.sendRecordingState(number);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Recording state sent successfully to ${number}`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Error sending recording state: ${error}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // Tool to send seen state
+  server.tool(
+    'send_seen',
+    {
+      number: z.string().describe('The phone number to mark messages as seen'),
+    },
+    async ({ number }) => {
+      try {
+        await service.sendSeen(number);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Seen state sent successfully to ${number}`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Error sending seen state: ${error}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // Tool to send a sticker
+  server.tool(
+    'send_sticker',
+    {
+      number: z.string().describe('The phone number to send the sticker to'),
+      source: z
+        .string()
+        .describe(
+          'The source of the sticker - URLs must use http:// or https:// prefixes, local files must use file:// prefix',
+        ),
+    },
+    async ({ number, source }) => {
+      try {
+        const result = await service.sendSticker({ number, source });
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Sticker sent successfully to ${number}.\nMessage ID: ${result.messageId}`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Error sending sticker: ${error}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // Tool to create sticker from image
+  server.tool(
+    'create_sticker_from_image',
+    {
+      number: z.string().describe('The phone number to send the sticker to'),
+      source: z
+        .string()
+        .describe(
+          'The source of the image - URLs must use http:// or https:// prefixes, local files must use file:// prefix',
+        ),
+    },
+    async ({ number, source }) => {
+      try {
+        const result = await service.createStickerFromImage({ number, source });
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Sticker created and sent successfully to ${number}.\nMessage ID: ${result.messageId}`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Error creating sticker from image: ${error}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // Tool to send voice message
+  server.tool(
+    'send_voice_message',
+    {
+      number: z.string().describe('The phone number to send the voice message to'),
+      source: z
+        .string()
+        .describe(
+          'The source of the audio file - URLs must use http:// or https:// prefixes, local files must use file:// prefix',
+        ),
+      duration: z.number().optional().describe('Duration of the voice message in seconds (optional)'),
+    },
+    async ({ number, source, duration }) => {
+      try {
+        const result = await service.sendVoiceMessage({ number, source, duration });
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Voice message sent successfully to ${number}.\nMessage ID: ${result.messageId}`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Error sending voice message: ${error}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // Tool to send audio file
+  server.tool(
+    'send_audio_file',
+    {
+      number: z.string().describe('The phone number to send the audio file to'),
+      source: z
+        .string()
+        .describe(
+          'The source of the audio file - URLs must use http:// or https:// prefixes, local files must use file:// prefix',
+        ),
+      caption: z.string().optional().describe('Optional caption for the audio file'),
+    },
+    async ({ number, source, caption }) => {
+      try {
+        const result = await service.sendAudioFile({ number, source, caption });
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Audio file sent successfully to ${number}.\nMessage ID: ${result.messageId}`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Error sending audio file: ${error}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
   return server;
 }

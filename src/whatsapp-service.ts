@@ -587,4 +587,173 @@ export class WhatsAppService {
       );
     }
   }
+
+  async sendTypingState(number: string): Promise<void> {
+    try {
+      const chatId = number.includes('@c.us') ? number : `${number}@c.us`;
+      if (this.client.pupPage) {
+        await this.client.pupPage.evaluate(
+          (chatId: string) => {
+            // @ts-ignore
+            window.Store.Chat.get(chatId)?.sendSeen();
+          },
+          chatId,
+        );
+      }
+    } catch (error) {
+      throw new Error(
+        `Failed to send typing state: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  async sendRecordingState(number: string): Promise<void> {
+    try {
+      const chatId = number.includes('@c.us') ? number : `${number}@c.us`;
+      if (this.client.pupPage) {
+        await this.client.pupPage.evaluate(
+          (chatId: string) => {
+            // @ts-ignore
+            const chat = window.Store.Chat.get(chatId);
+            if (chat) {
+              // @ts-ignore
+              chat.sendStateRecording();
+            }
+          },
+          chatId,
+        );
+      }
+    } catch (error) {
+      throw new Error(
+        `Failed to send recording state: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  async sendSeen(number: string): Promise<void> {
+    try {
+      const chatId = number.includes('@c.us') ? number : `${number}@c.us`;
+      if (this.client.pupPage) {
+        await this.client.pupPage.evaluate(
+          (chatId: string) => {
+            // @ts-ignore
+            window.Store.Chat.get(chatId)?.sendSeen();
+          },
+          chatId,
+        );
+      }
+    } catch (error) {
+      throw new Error(
+        `Failed to send seen state: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  async sendSticker({ number, source }: { number: string; source: string }): Promise<SendMessageResponse> {
+    try {
+      const chatId = number.includes('@c.us') ? number : `${number}@c.us`;
+      let media: MessageMedia;
+
+      if (source.startsWith('http://') || source.startsWith('https://')) {
+        media = await MessageMedia.fromUrl(source);
+      } else if (source.startsWith('file://')) {
+        const filePath = source.replace('file://', '');
+        media = MessageMedia.fromFilePath(filePath);
+      } else {
+        media = MessageMedia.fromFilePath(source);
+      }
+
+      const message = await this.client.sendMessage(chatId, media, { sendMediaAsSticker: true });
+
+      return {
+        messageId: message.id._serialized,
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to send sticker: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  async createStickerFromImage({ number, source }: { number: string; source: string }): Promise<SendMessageResponse> {
+    try {
+      const chatId = number.includes('@c.us') ? number : `${number}@c.us`;
+      let media: MessageMedia;
+
+      if (source.startsWith('http://') || source.startsWith('https://')) {
+        media = await MessageMedia.fromUrl(source);
+      } else if (source.startsWith('file://')) {
+        const filePath = source.replace('file://', '');
+        media = MessageMedia.fromFilePath(filePath);
+      } else {
+        media = MessageMedia.fromFilePath(source);
+      }
+
+      const message = await this.client.sendMessage(chatId, media, { sendMediaAsSticker: true });
+
+      return {
+        messageId: message.id._serialized,
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to create sticker from image: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  async sendVoiceMessage({ number, source }: { number: string; source: string; duration?: number }): Promise<SendMessageResponse> {
+    try {
+      const chatId = number.includes('@c.us') ? number : `${number}@c.us`;
+      let media: MessageMedia;
+
+      if (source.startsWith('http://') || source.startsWith('https://')) {
+        media = await MessageMedia.fromUrl(source);
+      } else if (source.startsWith('file://')) {
+        const filePath = source.replace('file://', '');
+        media = MessageMedia.fromFilePath(filePath);
+      } else {
+        media = MessageMedia.fromFilePath(source);
+      }
+
+      // Set voice message properties
+      media.filename = 'voice.ogg';
+      media.mimetype = 'audio/ogg; codecs=opus';
+
+      const message = await this.client.sendMessage(chatId, media, { sendMediaAsDocument: false });
+
+      return {
+        messageId: message.id._serialized,
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to send voice message: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  async sendAudioFile({ number, source, caption }: { number: string; source: string; caption?: string }): Promise<SendMessageResponse> {
+    try {
+      const chatId = number.includes('@c.us') ? number : `${number}@c.us`;
+      let media: MessageMedia;
+
+      if (source.startsWith('http://') || source.startsWith('https://')) {
+        media = await MessageMedia.fromUrl(source);
+      } else if (source.startsWith('file://')) {
+        const filePath = source.replace('file://', '');
+        media = MessageMedia.fromFilePath(filePath);
+      } else {
+        media = MessageMedia.fromFilePath(source);
+      }
+
+      const message = await this.client.sendMessage(chatId, media, { caption });
+
+      return {
+        messageId: message.id._serialized,
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to send audio file: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
 }
