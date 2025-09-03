@@ -225,6 +225,14 @@ export class WhatsAppApiClient {
     }
   }
 
+  async clearState(number: string): Promise<void> {
+    try {
+      await this.axiosInstance.post('/clear-state', { number });
+    } catch (error) {
+      throw new Error(`Failed to clear state: ${errorToString(error)}`);
+    }
+  }
+
   async sendSticker({ number, source }: { number: string; source: string }): Promise<SendMessageResponse> {
     try {
       const response = await this.axiosInstance.post('/send-sticker', { number, source });

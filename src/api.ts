@@ -731,5 +731,63 @@ export function routerFactory(client: Client): Router {
     }
   });
 
+  /**
+   * @swagger
+   * /clear-state:
+   *   post:
+   *     summary: Clear chat state (stop typing/recording)
+   *     tags: [Chat States]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - number
+   *             properties:
+   *               number:
+   *                 type: string
+   *                 description: The phone number to clear state for
+   *     responses:
+   *       200:
+   *         description: State cleared successfully
+   *       404:
+   *         description: Number not found on WhatsApp
+   *       500:
+   *         description: Server error
+   */
+  router.post('/clear-state', async (req: Request, res: Response) => {
+    try {
+      const { number } = req.body;
+
+      if (!number) {
+        res.status(400).json({ error: 'Number is required' });
+        return;
+      }
+
+      await whatsappService.clearState(number);
+      res.json({ message: `State cleared successfully for ${number}` });
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('not ready')) {
+          res.status(503).json({ error: error.message });
+        } else if (error.message.includes('not registered')) {
+          res.status(404).json({ error: error.message });
+        } else {
+          res.status(500).json({
+            error: 'Failed to clear state',
+            details: error.message,
+          });
+        }
+      } else {
+        res.status(500).json({
+          error: 'Failed to clear state',
+          details: String(error),
+        });
+      }
+    }
+  });
+
   return router;
 }

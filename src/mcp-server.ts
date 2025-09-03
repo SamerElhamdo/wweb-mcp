@@ -724,6 +724,38 @@ export function createMcpServer(config: McpConfig = {}, client: Client | null = 
     },
   );
 
+  // Tool to clear chat state (stop typing/recording)
+  server.tool(
+    'clear_state',
+    {
+      number: z.string().describe('The phone number to clear chat state for'),
+    },
+    async ({ number }) => {
+      try {
+        await service.clearState(number);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Chat state cleared successfully for ${number}`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Error clearing chat state: ${error}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
   // Tool to send a sticker
   server.tool(
     'send_sticker',

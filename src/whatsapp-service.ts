@@ -607,14 +607,16 @@ export class WhatsAppService {
     }
   }
 
-  async sendRecordingState(_number: string): Promise<void> {
+  async sendRecordingState(number: string): Promise<void> {
     try {
+      const chatId = number.includes('@c.us') ? number : `${number}@c.us`;
       if (this.client.pupPage) {
         await this.client.pupPage.evaluate(
-          () => {
+          (chatId: string) => {
             // @ts-ignore
-            window.Store.Presence.sendPresenceAvailable();
+            window.WWebJS.sendChatstate('recording', chatId);
           },
+          chatId,
         );
       }
     } catch (error) {
@@ -639,6 +641,25 @@ export class WhatsAppService {
     } catch (error) {
       throw new Error(
         `Failed to send seen state: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  async clearState(number: string): Promise<void> {
+    try {
+      const chatId = number.includes('@c.us') ? number : `${number}@c.us`;
+      if (this.client.pupPage) {
+        await this.client.pupPage.evaluate(
+          (chatId: string) => {
+            // @ts-ignore
+            window.WWebJS.sendChatstate('stop', chatId);
+          },
+          chatId,
+        );
+      }
+    } catch (error) {
+      throw new Error(
+        `Failed to clear state: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
