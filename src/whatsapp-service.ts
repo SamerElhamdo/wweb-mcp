@@ -611,20 +611,14 @@ export class WhatsAppService {
     }
   }
 
-  async sendRecordingState(number: string): Promise<void> {
+  async sendRecordingState(_number: string): Promise<void> {
     try {
-      const chatId = number.includes('@c.us') ? number : `${number}@c.us`;
       if (this.client.pupPage) {
         await this.client.pupPage.evaluate(
-          (chatId: string) => {
+          () => {
             // @ts-ignore
-            const chat = window.Store.Chat.get(chatId);
-            if (chat) {
-              // @ts-ignore
-              chat.sendPresence('recording');
-            }
+            window.Store.Presence.sendPresenceAvailable();
           },
-          chatId,
         );
       }
     } catch (error) {
