@@ -30,7 +30,7 @@
     "express": "^5.0.1",
     "mime-types": "^2.1.35",
     "qrcode-terminal": "^0.12.0",
-    "whatsapp-web.js": "^1.34.1",
+    "whatsapp-web.js": "https://github.com/pnizer/whatsapp-web.js.git",
     "winston": "^3.17.0",
     "yargs": "^17.7.2"
   },
