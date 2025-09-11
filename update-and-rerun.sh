@@ -3,6 +3,8 @@
 # Script to update Docker image and restart container
 # Usage: ./update-and-rerun.sh
 
+git pull
+
 set -e  # Exit on any error
 
 echo "🚀 Starting Docker update and restart process..."
