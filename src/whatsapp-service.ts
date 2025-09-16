@@ -217,6 +217,30 @@ export class WhatsAppService {
     }
   }
 
+  async sendVote(messageId: string, selectedOptions: number[]): Promise<SendMessageResponse> {
+    try {
+      if (!this.client.info) {
+        throw new Error('WhatsApp client not ready. Please try again later.');
+      }
+
+      const message = await this.client.getMessageById(messageId);
+
+      if (!message.poll) {
+        throw new Error('The message is not a poll');
+      }
+
+      await message.poll.vote(selectedOptions);
+
+      return {
+        messageId: messageId,
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to send vote: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
   async createGroup(name: string, participants: string[]): Promise<CreateGroupResponse> {
     try {
       if (!this.client.info) {
