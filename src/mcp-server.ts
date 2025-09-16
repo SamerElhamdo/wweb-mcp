@@ -251,6 +251,52 @@ export function createMcpServer(config: McpConfig = {}, client: Client | null = 
     },
   );
 
+  // Tool to send a poll
+  server.tool(
+    'send_poll',
+    {
+      number: z.string().describe('The phone number to send the poll to'),
+      question: z.string().describe('The poll question'),
+      options: z.array(z.string()).describe('Array of poll options (at least 2)'),
+    },
+    async ({ number, question, options }) => {
+      try {
+        if (typeof (service as any).sendPoll !== 'function') {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'sendPoll is not supported by the current service implementation.',
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        const result = await (service as any).sendPoll(number, question, options);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Poll sent successfully to ${number}. Message ID: ${result.messageId}`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Error sending poll: ${error}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
   // Resource to list groups
   server.resource('groups', 'whatsapp://groups', async uri => {
     try {

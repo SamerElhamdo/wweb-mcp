@@ -1,4 +1,4 @@
-import { Client, LocalAuth, Message, NoAuth } from 'whatsapp-web.js';
+import { Client, LocalAuth, Message, NoAuth, Vote } from 'whatsapp-web.js';
 import qrcode from 'qrcode-terminal';
 import logger from './logger';
 import fs from 'fs';
@@ -135,6 +135,40 @@ export function createWhatsAppClient(config: WhatsAppConfig = {}): Client {
             isGroup,
             timestamp: message.timestamp,
             messageId: message.id._serialized,
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              ...(webhookConfig.authToken
+                ? { Authorization: `Bearer ${webhookConfig.authToken}` }
+                : {}),
+            },
+          },
+        );
+
+        if (response.status < 200 || response.status >= 300) {
+          logger.warn(`Webhook request failed with status ${response.status}`);
+        }
+      } catch (error) {
+        logger.error('Error sending webhook:', error);
+      }
+    }
+  });
+
+  // Handle vote update events
+  client.on('vote_update', async (vote: Vote) => {
+    logger.debug('Vote update received:', vote);
+
+    // Process webhook if configured
+    if (webhookConfig) {
+      // Send to webhook
+      try {
+        const response = await axios.post(
+          webhookConfig.url,
+          {
+            event: 'vote_update',
+            vote: vote,
+            timestamp: Date.now(),
           },
           {
             headers: {
