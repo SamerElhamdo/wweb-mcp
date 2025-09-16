@@ -182,6 +182,41 @@ export class WhatsAppService {
     }
   }
 
+  async sendPoll(number: string, question: string, options: string[]): Promise<SendMessageResponse> {
+    try {
+      if (!this.client.info) {
+        throw new Error('WhatsApp client not ready. Please try again later.');
+      }
+
+      // Ensure number is a string
+      if (typeof number !== 'string' || number.trim() === '') {
+        throw new Error('Invalid phone number');
+      }
+
+      if (typeof question !== 'string' || question.trim() === '') {
+        throw new Error('Invalid poll question');
+      }
+
+      if (!Array.isArray(options) || options.length < 2) {
+        throw new Error('Poll must have at least 2 options');
+      }
+
+      // Format the chat ID
+      const chatId = number.includes('@c.us') ? number : `${number}@c.us`;
+
+      // Send the poll
+      const result = await this.client.sendMessage(chatId, question, { poll: { options } });
+
+      return {
+        messageId: result.id.id,
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to send poll: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
   async createGroup(name: string, participants: string[]): Promise<CreateGroupResponse> {
     try {
       if (!this.client.info) {
