@@ -1,4 +1,4 @@
-import { Client, LocalAuth, Message, NoAuth, Vote } from 'whatsapp-web.js';
+import { Client, LocalAuth, Message, NoAuth } from 'whatsapp-web.js';
 import qrcode from 'qrcode-terminal';
 import logger from './logger';
 import fs from 'fs';
@@ -271,7 +271,7 @@ export function createWhatsAppClient(config: WhatsAppConfig = {}): Client {
   });
 
   // Handle vote update events
-  client.on('vote_update', async (vote: Vote) => {
+  client.on('vote_update', async (vote: any) => {
     logger.debug('Vote update received:', vote);
 
     // Process webhook if configured

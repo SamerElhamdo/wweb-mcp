@@ -297,50 +297,7 @@ export function createMcpServer(config: McpConfig = {}, client: Client | null = 
     },
   );
 
-  // Tool to send a vote on a poll
-  server.tool(
-    'send_vote',
-    {
-      messageId: z.string().describe('The ID of the poll message to vote on'),
-      selectedOptions: z.array(z.number()).describe('Array of option indices to vote for'),
-    },
-    async ({ messageId, selectedOptions }) => {
-      try {
-        if (typeof (service as any).sendVote !== 'function') {
-          return {
-            content: [
-              {
-                type: 'text',
-                text: 'sendVote is not supported by the current service implementation.',
-              },
-            ],
-            isError: true,
-          };
-        }
 
-        const result = await (service as any).sendVote(messageId, selectedOptions);
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Vote sent successfully on poll ${messageId}.`,
-            },
-          ],
-        };
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Error sending vote: ${error}`,
-            },
-          ],
-          isError: true,
-        };
-      }
-    },
-  );
 
   // Resource to list groups
   server.resource('groups', 'whatsapp://groups', async uri => {
