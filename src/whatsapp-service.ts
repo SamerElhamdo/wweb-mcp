@@ -748,6 +748,43 @@ export class WhatsAppService {
     }
   }
 
+  async sendPoll(
+    number: string,
+    question: string,
+    options: string[],
+  ): Promise<SendMessageResponse> {
+    try {
+      if (!this.client.info) {
+        throw new Error('WhatsApp client not ready. Please try again later.');
+      }
+
+      if (!Array.isArray(options) || options.length < 2) {
+        throw new Error('Poll must have at least 2 options');
+      }
+
+      // Ensure chat ID is properly formatted
+      const chatId = number.includes('@c.us') ? number : `${number}@c.us`;
+
+      // Send poll message (requires PR #2377 or newer version)
+      // The API shape: sendMessage(chatId, { poll: { name, options } })
+      const result = await this.client.sendMessage(chatId, {
+        poll: {
+          name: question,
+          options: options,
+        },
+      } as any); // Cast to any to bypass type issues
+
+      return {
+        messageId: result.id._serialized,
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to send poll: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+
   async sendAudioFile({ number, source, caption }: { number: string; source: string; caption?: string }): Promise<SendMessageResponse> {
     try {
       const chatId = number.includes('@c.us') ? number : `${number}@c.us`;
