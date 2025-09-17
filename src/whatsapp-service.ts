@@ -1,4 +1,4 @@
-import { Client, Contact, GroupChat, GroupParticipant, MessageMedia } from 'whatsapp-web.js';
+import { Client, Contact, GroupChat, GroupParticipant, MessageMedia, Poll } from 'whatsapp-web.js';
 // @ts-expect-error - ImportType not exported in whatsapp-web.js but needed for GroupChat functionality
 import _GroupChat from 'whatsapp-web.js/src/structures/GroupChat';
 import {
@@ -748,6 +748,7 @@ export class WhatsAppService {
     }
   }
 
+
   async sendPoll(
     number: string,
     question: string,
@@ -757,23 +758,18 @@ export class WhatsAppService {
       if (!this.client.info) {
         throw new Error('WhatsApp client not ready. Please try again later.');
       }
-
+  
       if (!Array.isArray(options) || options.length < 2) {
         throw new Error('Poll must have at least 2 options');
       }
-
-      // Ensure chat ID is properly formatted
+  
       const chatId = number.includes('@c.us') ? number : `${number}@c.us`;
-
-      // Send poll message (requires PR #2377 or newer version)
-      // The API shape: sendMessage(chatId, { poll: { name, options } })
-      const result = await this.client.sendMessage(chatId, {
-        poll: {
-          name: question,
-          options: options,
-        },
-      } as any); // Cast to any to bypass type issues
-
+  
+      // Create a proper Poll object
+      const poll = new Poll(question, options);
+  
+      const result = await this.client.sendMessage(chatId, poll);
+  
       return {
         messageId: result.id._serialized,
       };
@@ -783,7 +779,7 @@ export class WhatsAppService {
       );
     }
   }
-
+  
 
   async sendAudioFile({ number, source, caption }: { number: string; source: string; caption?: string }): Promise<SendMessageResponse> {
     try {
