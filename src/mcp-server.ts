@@ -297,6 +297,41 @@ export function createMcpServer(config: McpConfig = {}, client: Client | null = 
     },
   );
 
+    // Tool to delete a message
+    server.tool(
+      'delete_message',
+      {
+        messageId: z.string().describe('The ID of the message to delete'),
+        forEveryone: z.boolean().default(true).describe('Delete for everyone if true, only for me if false'),
+      },
+      async ({ messageId, forEveryone }) => {
+        try {
+          // استدعاء خدمة WhatsApp
+          const result = await (service as any).deleteMessage(messageId, forEveryone);
+  
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Message ${messageId} deleted successfully. Deleted for ${forEveryone ? 'everyone' : 'me only'}.`,
+              },
+            ],
+          };
+        } catch (error) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Error deleting message: ${error}`,
+              },
+            ],
+            isError: true,
+          };
+        }
+      },
+    );
+  
+
 
 
   // Resource to list groups

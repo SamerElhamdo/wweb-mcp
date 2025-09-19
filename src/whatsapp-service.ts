@@ -806,4 +806,28 @@ export class WhatsAppService {
       );
     }
   }
+
+
+  async deleteMessage(messageId: string, forEveryone: boolean = true): Promise<{ success: boolean; messageId: string }> {
+    try {
+      if (!this.client.info) {
+        throw new Error('WhatsApp client not ready. Please try again later.');
+      }
+  
+      if (!messageId) throw new Error('Invalid message ID');
+  
+      const message = await this.client.getMessageById(messageId);
+      if (!message) throw new Error(`Message with ID ${messageId} not found`);
+  
+      await message.delete(forEveryone);
+  
+      return { success: true, messageId };
+    } catch (error) {
+      throw new Error(
+        `Failed to delete message: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+  
+  
 }
