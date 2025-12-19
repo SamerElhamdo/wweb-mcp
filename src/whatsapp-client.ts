@@ -79,60 +79,63 @@ export function createWhatsAppClient(config: WhatsAppConfig = {}): Client {
 
   // Remove Chrome lock files if they exist
   // This prevents "profile in use" errors when restarting
+  // LocalAuth creates .wwebjs_auth directory inside dataPath, and Chromium creates Default profile inside
   const removeLockFile = (lockPath: string) => {
     try {
       if (fs.existsSync(lockPath)) {
         fs.rmSync(lockPath, { force: true });
-        logger.debug(`Removed lock file: ${lockPath}`);
+        logger.info(`Removed lock file: ${lockPath}`);
+        return true;
       }
     } catch (error) {
       // Ignore errors when removing lock files
       logger.debug(`Could not remove lock file ${lockPath}: ${error}`);
     }
+    return false;
   };
 
-  // Remove lock files from common locations
-  const lockFiles = [
-    path.join(authDataPath, 'SingletonLock'),
-    path.join(authDataPath, '.wwebjs_auth', 'SingletonLock'),
-    path.join(authDataPath, 'Default', 'SingletonLock'),
-    path.join(authDataPath, '.wwebjs_auth', 'Default', 'SingletonLock'),
-  ];
-
-  lockFiles.forEach(removeLockFile);
-
-  // Also search for and remove lock files in subdirectories (for LocalAuth)
-  // LocalAuth may create nested directories, so we need to search recursively
-  const removeLockFilesRecursively = (dirPath: string, maxDepth: number = 3, currentDepth: number = 0) => {
-    if (currentDepth >= maxDepth) return;
+  // Recursively find and remove all SingletonLock files
+  const removeAllLockFiles = (dirPath: string, maxDepth: number = 5, currentDepth: number = 0): number => {
+    let removedCount = 0;
+    if (currentDepth >= maxDepth) return removedCount;
     
     try {
-      if (!fs.existsSync(dirPath)) return;
+      if (!fs.existsSync(dirPath)) return removedCount;
       
       const entries = fs.readdirSync(dirPath, { withFileTypes: true });
       for (const entry of entries) {
+        const entryPath = path.join(dirPath, entry.name);
+        
         if (entry.isDirectory()) {
-          const subDirPath = path.join(dirPath, entry.name);
-          const lockFile = path.join(subDirPath, 'SingletonLock');
-          removeLockFile(lockFile);
+          // Check for SingletonLock in this directory
+          const lockFile = path.join(entryPath, 'SingletonLock');
+          if (removeLockFile(lockFile)) {
+            removedCount++;
+          }
           // Recursively search subdirectories
-          removeLockFilesRecursively(subDirPath, maxDepth, currentDepth + 1);
+          removedCount += removeAllLockFiles(entryPath, maxDepth, currentDepth + 1);
+        } else if (entry.name === 'SingletonLock') {
+          // Found a lock file directly
+          if (removeLockFile(entryPath)) {
+            removedCount++;
+          }
         }
       }
     } catch (error) {
       // Ignore errors when scanning directories
       logger.debug(`Could not scan directory ${dirPath} for lock files: ${error}`);
     }
+    
+    return removedCount;
   };
 
-  if (config.authStrategy === 'local') {
-    // Search in LocalAuth's default path
-    const localAuthPath = path.join(authDataPath, '.wwebjs_auth');
-    removeLockFilesRecursively(localAuthPath);
-    removeLockFile(path.join(localAuthPath, 'SingletonLock'));
-    
-    // Also search in the main authDataPath for any nested directories
-    removeLockFilesRecursively(authDataPath, 2);
+  // Remove lock files from the entire authDataPath tree
+  logger.info(`Scanning for lock files in: ${authDataPath}`);
+  const removedCount = removeAllLockFiles(authDataPath, 5);
+  if (removedCount > 0) {
+    logger.info(`Removed ${removedCount} lock file(s) from ${authDataPath}`);
+  } else {
+    logger.debug('No lock files found to remove');
   }
 
   const npx_args = { headless: true };
@@ -147,15 +150,32 @@ export function createWhatsAppClient(config: WhatsAppConfig = {}): Client {
 
   // When using LocalAuth, don't set userDataDir in puppeteer args
   // LocalAuth manages the userDataDir itself
+  // Add additional args to prevent lock file issues
   const docker_args = config.authStrategy === 'local'
     ? {
         headless: true,
-        args: ['--no-sandbox', '--single-process', '--no-zygote'],
+        args: [
+          '--no-sandbox',
+          '--single-process',
+          '--no-zygote',
+          '--disable-dev-shm-usage',
+          '--disable-setuid-sandbox',
+          '--disable-gpu',
+          '--disable-software-rasterizer',
+        ],
       }
     : {
         headless: true,
         userDataDir: authDataPath,
-        args: ['--no-sandbox', '--single-process', '--no-zygote'],
+        args: [
+          '--no-sandbox',
+          '--single-process',
+          '--no-zygote',
+          '--disable-dev-shm-usage',
+          '--disable-setuid-sandbox',
+          '--disable-gpu',
+          '--disable-software-rasterizer',
+        ],
       };
 
   const puppeteer = config.dockerContainer ? docker_args : npx_args;
