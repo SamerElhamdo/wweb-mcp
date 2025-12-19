@@ -77,11 +77,62 @@ export function createWhatsAppClient(config: WhatsAppConfig = {}): Client {
     }
   }
 
-  // remove Chrome lock file if it exists
-  try {
-    fs.rmSync(authDataPath + '/SingletonLock', { force: true });
-  } catch {
-    // Ignore if file doesn't exist
+  // Remove Chrome lock files if they exist
+  // This prevents "profile in use" errors when restarting
+  const removeLockFile = (lockPath: string) => {
+    try {
+      if (fs.existsSync(lockPath)) {
+        fs.rmSync(lockPath, { force: true });
+        logger.debug(`Removed lock file: ${lockPath}`);
+      }
+    } catch (error) {
+      // Ignore errors when removing lock files
+      logger.debug(`Could not remove lock file ${lockPath}: ${error}`);
+    }
+  };
+
+  // Remove lock files from common locations
+  const lockFiles = [
+    path.join(authDataPath, 'SingletonLock'),
+    path.join(authDataPath, '.wwebjs_auth', 'SingletonLock'),
+    path.join(authDataPath, 'Default', 'SingletonLock'),
+    path.join(authDataPath, '.wwebjs_auth', 'Default', 'SingletonLock'),
+  ];
+
+  lockFiles.forEach(removeLockFile);
+
+  // Also search for and remove lock files in subdirectories (for LocalAuth)
+  // LocalAuth may create nested directories, so we need to search recursively
+  const removeLockFilesRecursively = (dirPath: string, maxDepth: number = 3, currentDepth: number = 0) => {
+    if (currentDepth >= maxDepth) return;
+    
+    try {
+      if (!fs.existsSync(dirPath)) return;
+      
+      const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.isDirectory()) {
+          const subDirPath = path.join(dirPath, entry.name);
+          const lockFile = path.join(subDirPath, 'SingletonLock');
+          removeLockFile(lockFile);
+          // Recursively search subdirectories
+          removeLockFilesRecursively(subDirPath, maxDepth, currentDepth + 1);
+        }
+      }
+    } catch (error) {
+      // Ignore errors when scanning directories
+      logger.debug(`Could not scan directory ${dirPath} for lock files: ${error}`);
+    }
+  };
+
+  if (config.authStrategy === 'local') {
+    // Search in LocalAuth's default path
+    const localAuthPath = path.join(authDataPath, '.wwebjs_auth');
+    removeLockFilesRecursively(localAuthPath);
+    removeLockFile(path.join(localAuthPath, 'SingletonLock'));
+    
+    // Also search in the main authDataPath for any nested directories
+    removeLockFilesRecursively(authDataPath, 2);
   }
 
   const npx_args = { headless: true };
