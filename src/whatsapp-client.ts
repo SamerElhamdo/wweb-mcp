@@ -85,12 +85,7 @@ export function createWhatsAppClient(config: WhatsAppConfig = {}): Client {
   }
 
   const npx_args = { headless: true };
-  const docker_args = {
-    headless: true,
-    userDataDir: authDataPath,
-    args: ['--no-sandbox', '--single-process', '--no-zygote'],
-  };
-
+  
   // Support LocalAuth in Docker if authStrategy is 'local'
   const authStrategy =
     config.authStrategy === 'local'
@@ -98,6 +93,19 @@ export function createWhatsAppClient(config: WhatsAppConfig = {}): Client {
           dataPath: authDataPath,
         })
       : new NoAuth();
+
+  // When using LocalAuth, don't set userDataDir in puppeteer args
+  // LocalAuth manages the userDataDir itself
+  const docker_args = config.authStrategy === 'local'
+    ? {
+        headless: true,
+        args: ['--no-sandbox', '--single-process', '--no-zygote'],
+      }
+    : {
+        headless: true,
+        userDataDir: authDataPath,
+        args: ['--no-sandbox', '--single-process', '--no-zygote'],
+      };
 
   const puppeteer = config.dockerContainer ? docker_args : npx_args;
 
