@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>إدارة جلسات WhatsApp</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 30px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            text-align: center;
+            font-size: 2.5em;
+        }
+
+        .add-session {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }
+
+        .add-session h2 {
+            margin-bottom: 15px;
+            color: #667eea;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 600;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s;
+            font-weight: 600;
+        }
+
+        button:hover {
+            background: #5568d3;
+        }
+
+        button.delete {
+            background: #e74c3c;
+        }
+
+        button.delete:hover {
+            background: #c0392b;
+        }
+
+        .sessions-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .session-card {
+            background: #f8f9fa;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 20px;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .session-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+
+        .session-card.ready {
+            border-color: #27ae60;
+        }
+
+        .session-card.authenticating {
+            border-color: #f39c12;
+        }
+
+        .session-card.error {
+            border-color: #e74c3c;
+        }
+
+        .session-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .session-id {
+            font-weight: bold;
+            font-size: 1.2em;
+            color: #333;
+        }
+
+        .status-badge {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 600;
+        }
+
+        .status-badge.ready {
+            background: #27ae60;
+            color: white;
+        }
+
+        .status-badge.authenticating {
+            background: #f39c12;
+            color: white;
+        }
+
+        .status-badge.initializing {
+            background: #3498db;
+            color: white;
+        }
+
+        .status-badge.error {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .status-badge.disconnected {
+            background: #95a5a6;
+            color: white;
+        }
+
+        .session-info {
+            margin-bottom: 15px;
+        }
+
+        .session-info p {
+            margin: 5px 0;
+            color: #666;
+        }
+
+        .qr-code {
+            text-align: center;
+            margin: 15px 0;
+        }
+
+        .qr-code img {
+            max-width: 200px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+        }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .actions button {
+            flex: 1;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+
+        .error-message {
+            background: #fee;
+            color: #c33;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📱 إدارة جلسات WhatsApp</h1>
+
+        <div class="add-session">
+            <h2>➕ إضافة جلسة جديدة</h2>
+            <form id="addSessionForm">
+                <div class="form-group">
+                    <label for="sessionId">معرف الجلسة:</label>
+                    <input type="text" id="sessionId" name="sessionId" required 
+                           placeholder="مثال: session1, user1, etc.">
+                </div>
+                <button type="submit">إنشاء جلسة</button>
+            </form>
+            <div id="addError" class="error-message" style="display: none;"></div>
+        </div>
+
+        <div id="sessionsContainer">
+            <div class="loading">جاري تحميل الجلسات...</div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/sessions';
+
+        // Load sessions on page load
+        async function loadSessions() {
+            try {
+                const response = await fetch(`${API_BASE}`);
+                const sessions = await response.json();
+                displaySessions(sessions);
+            } catch (error) {
+                document.getElementById('sessionsContainer').innerHTML = 
+                    `<div class="error-message">خطأ في تحميل الجلسات: ${error.message}</div>`;
+            }
+        }
+
+        function displaySessions(sessions) {
+            const container = document.getElementById('sessionsContainer');
+            
+            if (sessions.length === 0) {
+                container.innerHTML = '<div class="loading">لا توجد جلسات حالياً</div>';
+                return;
+            }
+
+            container.innerHTML = '<div class="sessions-grid"></div>';
+            const grid = container.querySelector('.sessions-grid');
+
+            sessions.forEach(session => {
+                const card = document.createElement('div');
+                card.className = `session-card ${session.status}`;
+                
+                const statusText = {
+                    'ready': 'جاهز',
+                    'authenticating': 'قيد المصادقة',
+                    'initializing': 'قيد التهيئة',
+                    'error': 'خطأ',
+                    'disconnected': 'منقطع'
+                };
+
+                card.innerHTML = `
+                    <div class="session-header">
+                        <div class="session-id">${session.sessionId}</div>
+                        <span class="status-badge ${session.status}">${statusText[session.status] || session.status}</span>
+                    </div>
+                    <div class="session-info">
+                        ${session.phoneNumber ? `<p><strong>رقم الهاتف:</strong> ${session.phoneNumber}</p>` : ''}
+                        ${session.name ? `<p><strong>الاسم:</strong> ${session.name}</p>` : ''}
+                        ${session.error ? `<p class="error-message">${session.error}</p>` : ''}
+                        <p><strong>تاريخ الإنشاء:</strong> ${new Date(session.createdAt).toLocaleString('ar-SA')}</p>
+                        <p><strong>آخر نشاط:</strong> ${new Date(session.lastActivity).toLocaleString('ar-SA')}</p>
+                    </div>
+                    ${session.qrCode ? `
+                        <div class="qr-code">
+                            <img src="${API_BASE}/${session.sessionId}/qr" alt="QR Code">
+                            <p>امسح رمز QR بهاتفك</p>
+                        </div>
+                    ` : ''}
+                    <div class="actions">
+                        <button class="delete" onclick="deleteSession('${session.sessionId}')">حذف</button>
+                        <button onclick="refreshSession('${session.sessionId}')">تحديث</button>
+                    </div>
+                `;
+                
+                grid.appendChild(card);
+            });
+        }
+
+        // Add new session
+        document.getElementById('addSessionForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const sessionId = document.getElementById('sessionId').value.trim();
+            const errorDiv = document.getElementById('addError');
+            
+            if (!sessionId) {
+                errorDiv.textContent = 'يرجى إدخال معرف الجلسة';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            try {
+                errorDiv.style.display = 'none';
+                const response = await fetch(`${API_BASE}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sessionId })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'فشل إنشاء الجلسة');
+                }
+
+                document.getElementById('sessionId').value = '';
+                await loadSessions();
+            } catch (error) {
+                errorDiv.textContent = error.message;
+                errorDiv.style.display = 'block';
+            }
+        });
+
+        // Delete session
+        async function deleteSession(sessionId) {
+            if (!confirm(`هل أنت متأكد من حذف الجلسة "${sessionId}"؟`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/${sessionId}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    throw new Error('فشل حذف الجلسة');
+                }
+
+                await loadSessions();
+            } catch (error) {
+                alert(`خطأ: ${error.message}`);
+            }
+        }
+
+        // Refresh session
+        async function refreshSession(sessionId) {
+            await loadSessions();
+        }
+
+        // Auto-refresh every 5 seconds
+        setInterval(loadSessions, 5000);
+
+        // Initial load
+        loadSessions();
+    </script>
+</body>
+</html>
+

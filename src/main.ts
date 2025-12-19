@@ -8,6 +8,8 @@ import { hideBin } from 'yargs/helpers';
 import logger, { configureForCommandMode } from './logger';
 import { requestLogger, errorHandler } from './middleware';
 import { routerFactory } from './api';
+import { createSessionRouter } from './session-api';
+import { SessionManager } from './session-manager';
 import { Client } from 'whatsapp-web.js';
 import fs from 'fs';
 import path from 'path';
@@ -183,35 +185,110 @@ async function getWhatsAppApiKey(whatsAppConfig: WhatsAppConfig): Promise<string
   return fs.readFileSync(apiKeyPath, 'utf8');
 }
 
-async function startWhatsAppApiServer(whatsAppConfig: WhatsAppConfig, port: number): Promise<void> {
-  logger.info('Starting WhatsApp Web REST API...');
-  const client = createWhatsAppClient(whatsAppConfig);
-  await client.initialize();
-
-  const apiKey = await getWhatsAppApiKey(whatsAppConfig);
-  logger.info(`WhatsApp API key: ${apiKey}`);
-
+async function startWhatsAppApiServer(
+  whatsAppConfig: WhatsAppConfig,
+  port: number,
+  enableSessions: boolean = false,
+  mongoUri: string = '',
+): Promise<void> {
   const app = express();
   app.use(requestLogger);
   app.use(express.json());
-  app.use((req: Request, res: Response, next: NextFunction) => {
-    const authHeader = req.headers['authorization'];
-    if (!authHeader || authHeader !== `Bearer ${apiKey}`) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
+  
+  // Serve static files for web UI
+  const publicPath = path.join(process.cwd(), 'public');
+  if (fs.existsSync(publicPath)) {
+    app.use(express.static(publicPath));
+    logger.info(`Serving static files from: ${publicPath}`);
+  } else {
+    logger.warn(`Public directory not found at: ${publicPath}`);
+  }
+  
+  // Root route to serve index.html
+  app.get('/', (_req: Request, res: Response) => {
+    const indexPath = path.join(publicPath, 'index.html');
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      res.status(404).json({ error: 'Web UI not available' });
     }
-    next();
   });
-  app.use('/api', routerFactory(client));
+
+  let sessionManager: SessionManager | null = null;
+  let defaultClient: Client | null = null;
+
+  if (enableSessions && mongoUri) {
+    // Multi-session mode with MongoDB
+    logger.info('Starting WhatsApp Web REST API with multi-session support...');
+    sessionManager = new SessionManager(mongoUri);
+    await sessionManager.initialize();
+
+    const apiKey = await getWhatsAppApiKey(whatsAppConfig);
+    logger.info(`WhatsApp API key: ${apiKey}`);
+
+    // Session management routes (no auth required for web UI)
+    app.use('/api/sessions', createSessionRouter(sessionManager));
+
+    // API routes with session selection (require auth)
+    app.use('/api', (req: Request, res: Response, next: NextFunction) => {
+      // Skip auth for /api/sessions routes
+      if (req.path.startsWith('/sessions')) {
+        return next();
+      }
+      
+      const authHeader = req.headers['authorization'];
+      if (!authHeader || authHeader !== `Bearer ${apiKey}`) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+      
+      const sessionId = (req.query.sessionId as string) || (req.body.sessionId as string);
+      if (sessionId && sessionManager) {
+        const client = sessionManager.getSession(sessionId);
+        if (client) {
+          const router = routerFactory(client);
+          router(req, res, next);
+          return;
+        }
+      }
+      res.status(404).json({ error: 'Session not found or not specified' });
+    });
+  } else {
+    // Single session mode (legacy)
+    logger.info('Starting WhatsApp Web REST API (single session mode)...');
+    defaultClient = await createWhatsAppClient(whatsAppConfig);
+    await defaultClient.initialize();
+
+    const apiKey = await getWhatsAppApiKey(whatsAppConfig);
+    logger.info(`WhatsApp API key: ${apiKey}`);
+
+    app.use((req: Request, res: Response, next: NextFunction) => {
+      const authHeader = req.headers['authorization'];
+      if (!authHeader || authHeader !== `Bearer ${apiKey}`) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+      next();
+    });
+    app.use('/api', routerFactory(defaultClient));
+  }
+
   app.use(errorHandler);
   app.listen(port, () => {
     logger.info(`WhatsApp Web Client API started successfully on port ${port}`);
+    if (enableSessions) {
+      logger.info(`Web UI available at http://localhost:${port}`);
+    }
   });
 
   // Keep the process running
   process.on('SIGINT', async () => {
     logger.info('Shutting down WhatsApp Web Client API...');
-    await client.destroy();
+    if (sessionManager) {
+      await sessionManager.shutdown();
+    } else if (defaultClient) {
+      await defaultClient.destroy();
+    }
     process.exit(0);
   });
 }
@@ -225,7 +302,7 @@ async function startMcpServer(
   let client: Client | null = null;
   if (mode === 'standalone') {
     logger.info('Starting WhatsApp Web Client...');
-    client = createWhatsAppClient(mcpConfig.whatsappConfig);
+    client = await createWhatsAppClient(mcpConfig.whatsappConfig);
     await client.initialize();
   }
 
@@ -256,7 +333,12 @@ async function main(): Promise<void> {
         argv['mcp-mode'] as string,
       );
     } else if (argv.mode === 'whatsapp-api') {
-      await startWhatsAppApiServer(whatsAppConfig, argv['api-port'] as number);
+      await startWhatsAppApiServer(
+        whatsAppConfig,
+        argv['api-port'] as number,
+        argv['enable-sessions'] as boolean,
+        argv['mongo-uri'] as string,
+      );
     }
   } catch (error) {
     logger.error('Error starting application:', error);

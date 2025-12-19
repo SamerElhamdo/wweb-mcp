@@ -21,6 +21,8 @@ WORKDIR /project
 # Copy all necessary files first
 COPY package*.json tsconfig.json ./
 COPY src/ ./src/
+# Copy public directory
+COPY public/ ./public/
 
 # Then install and build
 RUN npm install

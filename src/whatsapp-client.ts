@@ -4,13 +4,16 @@ import logger from './logger';
 import fs from 'fs';
 import path from 'path';
 import axios from 'axios';
+import { MongoDBStore } from './mongodb-store';
 
 // Configuration interface
 export interface WhatsAppConfig {
   authDataPath?: string;
-  authStrategy?: 'local' | 'json' | 'none';
+  authStrategy?: 'local' | 'json' | 'mongodb' | 'none';
   dockerContainer?: boolean;
   mediaStoragePath?: string;
+  mongoConnectionString?: string;
+  sessionId?: string;
 }
 
 interface WebhookConfig {
@@ -61,7 +64,7 @@ function loadWebhookConfig(dataPath: string): WebhookConfig | undefined {
   return JSON.parse(fs.readFileSync(webhookConfigPath, 'utf8'));
 }
 
-export function createWhatsAppClient(config: WhatsAppConfig = {}): Client {
+export async function createWhatsAppClient(config: WhatsAppConfig = {}): Promise<Client> {
   const authDataPath = config.authDataPath || '.wwebjs_auth';
   const mediaStoragePath = config.mediaStoragePath || path.join(authDataPath, 'media');
 
@@ -193,6 +196,32 @@ export function createWhatsAppClient(config: WhatsAppConfig = {}): Client {
 
     authStrategy = new RemoteAuth({
       store: fileStore,
+      dataPath: authDataPath,
+      backupSyncIntervalMs: 300000, // Backup every 5 minutes
+    });
+  } else if (config.authStrategy === 'mongodb') {
+    // RemoteAuth: stores session in MongoDB
+    if (!config.mongoConnectionString) {
+      throw new Error('MongoDB connection string is required for mongodb auth strategy');
+    }
+    if (!config.sessionId) {
+      throw new Error('Session ID is required for mongodb auth strategy');
+    }
+
+    const mongoStore = new MongoDBStore(config.mongoConnectionString);
+    await mongoStore.connect();
+
+    // Create a wrapper to match Store interface
+    const storeWrapper = {
+      sessionExists: (options: { session: string }) => mongoStore.sessionExists(options),
+      delete: (options: { session: string }) => mongoStore.delete(options),
+      save: (options: { session: string; path?: string }) => mongoStore.save({ session: options.session, path: (options as any).path }),
+      extract: (options: { session: string; path: string }) => mongoStore.extract(options),
+    };
+
+    authStrategy = new RemoteAuth({
+      store: storeWrapper as any,
+      clientId: config.sessionId,
       dataPath: authDataPath,
       backupSyncIntervalMs: 300000, // Backup every 5 minutes
     });
