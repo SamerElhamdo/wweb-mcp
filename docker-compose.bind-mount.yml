@@ -1,5 +1,9 @@
 version: '3.8'
 
+# Alternative docker-compose.yml using Bind Mount instead of Named Volume
+# This ensures data is stored directly on the host filesystem
+# Use this if you want more control over the data location
+
 services:
   wweb-mcp:
     build:
@@ -10,11 +14,9 @@ services:
     ports:
       - "${PORT:-3002}:3002"
     volumes:
-      # Mount volume for persistent authentication data
-      # Option 1: Named Volume (managed by Docker) - recommended for Dokploy
-      - wweb-auth:/app/auth_data
-      # Option 2: Bind Mount (direct host path) - uncomment to use:
-      # - ./auth_data:/app/auth_data
+      # Bind Mount: Direct path on host (more persistent)
+      # Data will be stored in ./auth_data directory on the host
+      - ./auth_data:/app/auth_data
     environment:
       # Docker container flag
       - DOCKER_CONTAINER=true
@@ -52,11 +54,9 @@ services:
     networks:
       - wweb-network
 
-volumes:
-  wweb-auth:
-    driver: local
-
 networks:
   wweb-network:
     driver: bridge
+
+# Note: No volumes section needed when using bind mount
 

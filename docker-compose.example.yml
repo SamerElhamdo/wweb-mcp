@@ -14,7 +14,10 @@ services:
       - "3002:3002"
     volumes:
       # Persistent storage for WhatsApp authentication
+      # Option 1: Named Volume (managed by Docker) - recommended for Dokploy
       - wweb-auth:/app/auth_data
+      # Option 2: Bind Mount (direct host path) - uncomment to use:
+      # - ./auth_data:/app/auth_data
     environment:
       # Docker container flag
       - DOCKER_CONTAINER=true

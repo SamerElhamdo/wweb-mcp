@@ -128,12 +128,98 @@ LOG_LEVEL=info
 2. راجع Logs في Dokploy
 3. تأكد من أن Container يعمل بشكل صحيح
 
+## حفظ الجلسات والمصادقة
+
+### ✅ هل يتم الاحتفاظ بالجلسات عند إعادة البناء؟
+
+**نعم، الجلسات محفوظة** في الحالات التالية:
+
+#### ✅ الحالات التي تحفظ الجلسات:
+
+1. **إعادة البناء فقط (Rebuild)**
+   ```bash
+   docker-compose build
+   docker-compose up -d
+   ```
+   ✅ **الجلسات محفوظة** - الـ Volume لا يتأثر
+
+2. **إعادة البناء مع إزالة Container**
+   ```bash
+   docker-compose down
+   docker-compose build
+   docker-compose up -d
+   ```
+   ✅ **الجلسات محفوظة** - الـ Volume لا يُحذف مع `down`
+
+3. **إعادة تشغيل Container**
+   ```bash
+   docker-compose restart
+   ```
+   ✅ **الجلسات محفوظة** - البيانات في Volume
+
+#### ❌ الحالات التي تفقد الجلسات:
+
+1. **حذف Volume مع Container**
+   ```bash
+   docker-compose down -v  # -v يحذف الـ Volumes
+   ```
+   ❌ **الجلسات تُفقد** - Volume تم حذفه
+
+2. **حذف Volume يدوياً**
+   ```bash
+   docker volume rm wweb-mcp_wweb-auth
+   ```
+   ❌ **الجلسات تُفقد**
+
+### 📦 أنواع Volume في docker-compose.yml
+
+#### 1. Named Volume (الحالي - الموصى به لـ Dokploy)
+```yaml
+volumes:
+  - wweb-auth:/app/auth_data
+```
+- ✅ **محفوظ في Docker** - إدارة تلقائية
+- ✅ **يعمل بشكل ممتاز مع Dokploy**
+- ⚠️ **يُحذف فقط عند استخدام `down -v`**
+
+#### 2. Bind Mount (بديل - للتحكم الكامل)
+```yaml
+volumes:
+  - ./auth_data:/app/auth_data
+```
+- ✅ **محفوظ مباشرة على الـ Host**
+- ✅ **أكثر أماناً** - لا يُحذف إلا يدوياً
+- ⚠️ **يحتاج صلاحيات على المجلد**
+
+### 🔄 التوصية لـ Dokploy
+
+استخدم **Named Volume** (الإعداد الحالي) لأنه:
+- ✅ يعمل تلقائياً مع Dokploy
+- ✅ محفوظ بشكل دائم
+- ✅ لا يحتاج إعدادات إضافية
+- ✅ البيانات محفوظة بين إعادة البناء
+
+### 💾 نسخ احتياطي للجلسات
+
+إذا أردت نسخ احتياطي:
+
+```bash
+# نسخ Volume إلى ملف
+docker run --rm -v wweb-mcp_wweb-auth:/data -v $(pwd):/backup \
+  alpine tar czf /backup/auth_backup.tar.gz -C /data .
+
+# استعادة من النسخ الاحتياطي
+docker run --rm -v wweb-mcp_wweb-auth:/data -v $(pwd):/backup \
+  alpine tar xzf /backup/auth_backup.tar.gz -C /data
+```
+
 ## ملاحظات مهمة
 
 1. **حفظ البيانات**: البيانات محفوظة في Volume `wweb-auth`، لذا لن تحتاج لمسح QR Code مرة أخرى بعد المصادقة الأولى
-2. **الأمان**: استخدم `WEBHOOK_AUTH_TOKEN` قوي لحماية الويبهوك
-3. **المنافذ**: تأكد من فتح المنفذ المحدد في `SSE_PORT` في Firewall
-4. **الموارد**: تأكد من تخصيص موارد كافية للـ Container (خاصة الذاكرة)
+2. **إعادة البناء**: عند إعادة بناء الصورة (rebuild)، الجلسات تبقى محفوظة ما لم تحذف الـ Volume
+3. **الأمان**: استخدم `WEBHOOK_AUTH_TOKEN` قوي لحماية الويبهوك
+4. **المنافذ**: تأكد من فتح المنفذ المحدد في `SSE_PORT` في Firewall
+5. **الموارد**: تأكد من تخصيص موارد كافية للـ Container (خاصة الذاكرة)
 
 ## الدعم
 
