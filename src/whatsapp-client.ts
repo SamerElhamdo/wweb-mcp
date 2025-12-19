@@ -171,20 +171,32 @@ export function createWhatsAppClient(config: WhatsAppConfig = {}): Client {
 
       // Check for different message types
       if (message.hasMedia) {
-        const media = await message.downloadMedia();
-        if (media) {
-          messageType = media.mimetype?.startsWith('image/') ? 'image' :
-                       media.mimetype?.startsWith('video/') ? 'video' :
-                       media.mimetype?.startsWith('audio/') ? 'audio' :
-                       media.mimetype?.startsWith('application/') ? 'document' :
-                       'media';
-          
+        try {
+          const media = await message.downloadMedia();
+          if (media) {
+            messageType = media.mimetype?.startsWith('image/') ? 'image' :
+                         media.mimetype?.startsWith('video/') ? 'video' :
+                         media.mimetype?.startsWith('audio/') ? 'audio' :
+                         media.mimetype?.startsWith('application/') ? 'document' :
+                         'media';
+            
+            messageContent = {
+              type: messageType,
+              mimetype: media.mimetype,
+              filename: media.filename || 'unknown',
+              data: media.data, // Base64 data
+              caption: message.body || '',
+            };
+          }
+        } catch (error) {
+          // Media download failed (e.g., message too old, deleted, or unavailable)
+          logger.warn(`Failed to download media from message ${message.id._serialized}: ${error instanceof Error ? error.message : String(error)}`);
+          // Fall back to text message with media indicator
+          messageType = 'media';
           messageContent = {
-            type: messageType,
-            mimetype: media.mimetype,
-            filename: media.filename || 'unknown',
-            data: media.data, // Base64 data
-            caption: message.body || '',
+            type: 'media',
+            text: message.body || '',
+            error: 'Media unavailable or could not be downloaded',
           };
         }
       } else if (message.type === 'sticker') {
