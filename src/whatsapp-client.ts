@@ -132,20 +132,37 @@ export function createWhatsAppClient(config: WhatsAppConfig = {}): Client {
 
       // Check for different message types
       if (message.hasMedia) {
-        const media = await message.downloadMedia();
-        if (media) {
-          messageType = media.mimetype?.startsWith('image/') ? 'image' :
-                       media.mimetype?.startsWith('video/') ? 'video' :
-                       media.mimetype?.startsWith('audio/') ? 'audio' :
-                       media.mimetype?.startsWith('application/') ? 'document' :
-                       'media';
-          
+        try {
+          const media = await message.downloadMedia();
+          if (media && media.data) {
+            messageType = media.mimetype?.startsWith('image/') ? 'image' :
+                         media.mimetype?.startsWith('video/') ? 'video' :
+                         media.mimetype?.startsWith('audio/') ? 'audio' :
+                         media.mimetype?.startsWith('application/') ? 'document' :
+                         'media';
+            
+            messageContent = {
+              type: messageType,
+              mimetype: media.mimetype,
+              filename: media.filename || 'unknown',
+              data: media.data, // Base64 data
+              caption: message.body || '',
+            };
+          } else {
+            // Media download returned null or undefined, fall back to text
+            logger.warn(`Media download returned null/undefined for message ${message.id._serialized}`);
+            messageContent = {
+              type: 'text',
+              text: message.body || '',
+            };
+          }
+        } catch (error) {
+          // Handle errors during media download gracefully
+          logger.error(`Error downloading media for message ${message.id._serialized}:`, error);
+          // Fall back to text message
           messageContent = {
-            type: messageType,
-            mimetype: media.mimetype,
-            filename: media.filename || 'unknown',
-            data: media.data, // Base64 data
-            caption: message.body || '',
+            type: 'text',
+            text: message.body || '',
           };
         }
       } else if (message.type === 'sticker') {
