@@ -40,10 +40,10 @@ function loadWebhookConfig(dataPath: string): WebhookConfig | undefined {
     };
     
     // Remove undefined filters
-    if (!config.filters?.allowedNumbers?.length) {
+    if (config.filters && !config.filters.allowedNumbers?.length) {
       delete config.filters.allowedNumbers;
     }
-    if (config.filters.allowPrivate === true && config.filters.allowGroups === true) {
+    if (config.filters && config.filters.allowPrivate === true && config.filters.allowGroups === true) {
       // Both are true by default, so we can remove them to use defaults
       delete config.filters;
     }
