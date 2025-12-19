@@ -59,8 +59,8 @@ services:
       # Authentication data path (inside container)
       - AUTH_DATA_PATH=/app/auth_data
       
-      # Authentication strategy: 'local' or 'none'
-      - AUTH_STRATEGY=local
+      # Authentication strategy: 'local' (folder), 'json' (file), or 'none'
+      - AUTH_STRATEGY=json
       
       # Log level: 'error', 'warn', 'info', 'http', 'debug'
       - LOG_LEVEL=info
@@ -76,7 +76,7 @@ services:
       - --auth-data-path
       - /app/auth_data
       - --auth-strategy
-      - local
+      - json
       - --log-level
       - info
     networks:

@@ -32,7 +32,7 @@ services:
       - TRANSPORT=${TRANSPORT:-sse}
       - SSE_PORT=${SSE_PORT:-3002}
       - AUTH_DATA_PATH=/app/auth_data
-      - AUTH_STRATEGY=${AUTH_STRATEGY:-local}
+      - AUTH_STRATEGY=${AUTH_STRATEGY:-json}
       - LOG_LEVEL=${LOG_LEVEL:-info}
     command:
       - --mode
@@ -46,7 +46,7 @@ services:
       - --auth-data-path
       - /app/auth_data
       - --auth-strategy
-      - ${AUTH_STRATEGY:-local}
+      - ${AUTH_STRATEGY:-json}
       - --log-level
       - ${LOG_LEVEL:-info}
     networks:

@@ -58,9 +58,9 @@ function parseCommandLineArgs(): ReturnType<typeof yargs.parseSync> {
     })
     .option('auth-strategy', {
       alias: 's',
-      description: 'Authentication strategy: local or none',
+      description: 'Authentication strategy: local (folder), json (file), or none',
       type: 'string',
-      choices: ['local', 'none'],
+      choices: ['local', 'json', 'none'],
       default: 'local',
     })
     .option('api-base-url', {

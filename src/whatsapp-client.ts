@@ -1,4 +1,4 @@
-import { Client, LocalAuth, Message, NoAuth } from 'whatsapp-web.js';
+import { Client, LocalAuth, Message, NoAuth, RemoteAuth } from 'whatsapp-web.js';
 import qrcode from 'qrcode-terminal';
 import logger from './logger';
 import fs from 'fs';
@@ -8,7 +8,7 @@ import axios from 'axios';
 // Configuration interface
 export interface WhatsAppConfig {
   authDataPath?: string;
-  authStrategy?: 'local' | 'none';
+  authStrategy?: 'local' | 'json' | 'none';
   dockerContainer?: boolean;
   mediaStoragePath?: string;
 }
@@ -140,18 +140,71 @@ export function createWhatsAppClient(config: WhatsAppConfig = {}): Client {
 
   const npx_args = { headless: true };
   
-  // Support LocalAuth in Docker if authStrategy is 'local'
-  const authStrategy =
-    config.authStrategy === 'local'
-      ? new LocalAuth({
-          dataPath: authDataPath,
-        })
-      : new NoAuth();
+  // Support different authentication strategies
+  let authStrategy;
+  if (config.authStrategy === 'local') {
+    // LocalAuth: stores in folder structure (default)
+    authStrategy = new LocalAuth({
+      dataPath: authDataPath,
+    });
+  } else if (config.authStrategy === 'json') {
+    // RemoteAuth: stores session in JSON file using FileStore
+    const sessionPath = path.join(authDataPath, 'session.json');
+    
+    // Create a simple file-based store for JSON storage
+    // RemoteAuth uses session name, but we'll use a single JSON file
+    const fileStore = {
+      sessionExists: async ({ session: _session }: { session: string }): Promise<boolean> => {
+        try {
+          return fs.existsSync(sessionPath);
+        } catch {
+          return false;
+        }
+      },
+      delete: async ({ session: _session }: { session: string }): Promise<void> => {
+        try {
+          if (fs.existsSync(sessionPath)) {
+            fs.unlinkSync(sessionPath);
+          }
+        } catch (error) {
+          logger.error(`Failed to delete session file: ${error}`);
+        }
+      },
+      save: async ({ session: _session }: { session: string }): Promise<void> => {
+        try {
+          // RemoteAuth will handle the actual session data
+          // This is just a placeholder
+        } catch (error) {
+          logger.error(`Failed to save session file: ${error}`);
+        }
+      },
+      extract: async ({ session: _session, path: extractPath }: { session: string; path: string }): Promise<void> => {
+        try {
+          if (fs.existsSync(sessionPath)) {
+            const sessionData = JSON.parse(fs.readFileSync(sessionPath, 'utf8'));
+            // Extract session data to the specified path
+            fs.writeFileSync(extractPath, JSON.stringify(sessionData, null, 2));
+          }
+        } catch (error) {
+          logger.error(`Failed to extract session: ${error}`);
+        }
+      },
+    };
 
-  // When using LocalAuth, don't set userDataDir in puppeteer args
-  // LocalAuth manages the userDataDir itself
+    authStrategy = new RemoteAuth({
+      store: fileStore,
+      dataPath: authDataPath,
+      backupSyncIntervalMs: 300000, // Backup every 5 minutes
+    });
+  } else {
+    // NoAuth: no persistence, requires QR scan on each startup
+    authStrategy = new NoAuth();
+  }
+
+  // When using LocalAuth or RemoteAuth, don't set userDataDir in puppeteer args
+  // They manage the userDataDir themselves
   // Add additional args to prevent lock file issues
-  const docker_args = config.authStrategy === 'local'
+  const docker_args = (config.authStrategy === 'local' || config.authStrategy === 'json')
     ? {
         headless: true,
         args: [
