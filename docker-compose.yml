@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  wweb-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wweb-mcp
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3002}:3002"
+    volumes:
+      # Mount volume for persistent authentication data
+      - wweb-auth:/app/auth_data
+    environment:
+      # Docker container flag
+      - DOCKER_CONTAINER=true
+      
+      # Webhook Configuration (from environment variables)
+      - WEBHOOK_URL=${WEBHOOK_URL:-}
+      - WEBHOOK_AUTH_TOKEN=${WEBHOOK_AUTH_TOKEN:-}
+      - WEBHOOK_ALLOWED_NUMBERS=${WEBHOOK_ALLOWED_NUMBERS:-}
+      - WEBHOOK_ALLOW_PRIVATE=${WEBHOOK_ALLOW_PRIVATE:-true}
+      - WEBHOOK_ALLOW_GROUPS=${WEBHOOK_ALLOW_GROUPS:-true}
+      
+      # Application Configuration
+      - MODE=${MODE:-mcp}
+      - MCP_MODE=${MCP_MODE:-standalone}
+      - TRANSPORT=${TRANSPORT:-sse}
+      - SSE_PORT=${SSE_PORT:-3002}
+      - AUTH_DATA_PATH=/app/auth_data
+      - AUTH_STRATEGY=${AUTH_STRATEGY:-local}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    command:
+      - --mode
+      - ${MODE:-mcp}
+      - --mcp-mode
+      - ${MCP_MODE:-standalone}
+      - --transport
+      - ${TRANSPORT:-sse}
+      - --sse-port
+      - ${SSE_PORT:-3002}
+      - --auth-data-path
+      - /app/auth_data
+      - --auth-strategy
+      - ${AUTH_STRATEGY:-local}
+      - --log-level
+      - ${LOG_LEVEL:-info}
+    networks:
+      - wweb-network
+
+volumes:
+  wweb-auth:
+    driver: local
+
+networks:
+  wweb-network:
+    driver: bridge
+

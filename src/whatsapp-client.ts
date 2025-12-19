@@ -24,10 +24,40 @@ interface WebhookConfig {
 }
 
 function loadWebhookConfig(dataPath: string): WebhookConfig | undefined {
+  // First, try to load from environment variables (priority)
+  const webhookUrl = process.env.WEBHOOK_URL;
+  if (webhookUrl) {
+    const config: WebhookConfig = {
+      url: webhookUrl,
+      authToken: process.env.WEBHOOK_AUTH_TOKEN,
+      filters: {
+        allowedNumbers: process.env.WEBHOOK_ALLOWED_NUMBERS
+          ? process.env.WEBHOOK_ALLOWED_NUMBERS.split(',').map(n => n.trim())
+          : undefined,
+        allowPrivate: process.env.WEBHOOK_ALLOW_PRIVATE !== 'false',
+        allowGroups: process.env.WEBHOOK_ALLOW_GROUPS !== 'false',
+      },
+    };
+    
+    // Remove undefined filters
+    if (!config.filters?.allowedNumbers?.length) {
+      delete config.filters.allowedNumbers;
+    }
+    if (config.filters.allowPrivate === true && config.filters.allowGroups === true) {
+      // Both are true by default, so we can remove them to use defaults
+      delete config.filters;
+    }
+    
+    logger.info('Webhook configuration loaded from environment variables');
+    return config;
+  }
+
+  // Fallback to file-based configuration
   const webhookConfigPath = path.join(dataPath, 'webhook.json');
   if (!fs.existsSync(webhookConfigPath)) {
     return undefined;
   }
+  logger.info('Webhook configuration loaded from file');
   return JSON.parse(fs.readFileSync(webhookConfigPath, 'utf8'));
 }
 
@@ -61,8 +91,9 @@ export function createWhatsAppClient(config: WhatsAppConfig = {}): Client {
     args: ['--no-sandbox', '--single-process', '--no-zygote'],
   };
 
+  // Support LocalAuth in Docker if authStrategy is 'local'
   const authStrategy =
-    config.authStrategy === 'local' && !config.dockerContainer
+    config.authStrategy === 'local'
       ? new LocalAuth({
           dataPath: authDataPath,
         })

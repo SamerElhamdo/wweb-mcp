@@ -1,0 +1,89 @@
+version: '3.8'
+
+# Example docker-compose.yml for Dokploy
+# Copy this file to docker-compose.yml and update the environment variables
+
+services:
+  wweb-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wweb-mcp
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    volumes:
+      # Persistent storage for WhatsApp authentication
+      - wweb-auth:/app/auth_data
+    environment:
+      # Docker container flag
+      - DOCKER_CONTAINER=true
+      
+      # ============================================
+      # Webhook Configuration (Required)
+      # ============================================
+      # The URL where webhook notifications will be sent
+      - WEBHOOK_URL=https://your-server.com/webhook/incoming
+      
+      # Optional: Authentication token for webhook requests
+      - WEBHOOK_AUTH_TOKEN=your-secret-token-here
+      
+      # Optional: Comma-separated list of allowed phone numbers
+      # Example: +1234567890,+0987654321
+      - WEBHOOK_ALLOWED_NUMBERS=
+      
+      # Optional: Allow private messages (default: true)
+      - WEBHOOK_ALLOW_PRIVATE=true
+      
+      # Optional: Allow group messages (default: true)
+      - WEBHOOK_ALLOW_GROUPS=true
+      
+      # ============================================
+      # Application Configuration
+      # ============================================
+      # Run mode: 'mcp' or 'whatsapp-api'
+      - MODE=mcp
+      
+      # MCP connection mode: 'standalone' or 'api'
+      - MCP_MODE=standalone
+      
+      # Transport mode: 'sse' or 'command'
+      - TRANSPORT=sse
+      
+      # SSE server port
+      - SSE_PORT=3002
+      
+      # Authentication data path (inside container)
+      - AUTH_DATA_PATH=/app/auth_data
+      
+      # Authentication strategy: 'local' or 'none'
+      - AUTH_STRATEGY=local
+      
+      # Log level: 'error', 'warn', 'info', 'http', 'debug'
+      - LOG_LEVEL=info
+    command:
+      - --mode
+      - mcp
+      - --mcp-mode
+      - standalone
+      - --transport
+      - sse
+      - --sse-port
+      - "3002"
+      - --auth-data-path
+      - /app/auth_data
+      - --auth-strategy
+      - local
+      - --log-level
+      - info
+    networks:
+      - wweb-network
+
+volumes:
+  wweb-auth:
+    driver: local
+
+networks:
+  wweb-network:
+    driver: bridge
+
