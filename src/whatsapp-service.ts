@@ -723,6 +723,9 @@ export class WhatsAppService {
       const chatId = number.includes('@c.us') ? number : `${number}@c.us`;
       let media: MessageMedia;
 
+      // IMPORTANT: The source file MUST be in OGG format with Opus codec for voice messages to work correctly
+      // Required format: .ogg file with audio/ogg content type and Opus audio codec
+      // WhatsApp voice messages (PTT) require OGG/Opus format to play correctly in the chat
       if (source.startsWith('http://') || source.startsWith('https://')) {
         media = await MessageMedia.fromUrl(source);
       } else if (source.startsWith('file://')) {
@@ -733,8 +736,9 @@ export class WhatsAppService {
       }
 
       // Set voice message properties for PTT (Push-to-Talk) voice recording
+      // Format: OGG container with Opus codec, Content-Type: audio/ogg
       media.filename = 'PTT.ogg';
-      media.mimetype = 'audio/ogg; codecs=opus';
+      media.mimetype = 'audio/ogg';
 
       // Send as voice recording (PTT) not as file
       // @ts-expect-error - sendPtt option exists but not in type definitions
