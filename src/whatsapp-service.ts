@@ -732,11 +732,13 @@ export class WhatsAppService {
         media = MessageMedia.fromFilePath(source);
       }
 
-      // Set voice message properties
-      media.filename = 'voice.ogg';
+      // Set voice message properties for PTT (Push-to-Talk) voice recording
+      media.filename = 'PTT.ogg';
       media.mimetype = 'audio/ogg; codecs=opus';
 
-      const message = await this.client.sendMessage(chatId, media, { sendMediaAsDocument: false });
+      // Send as voice recording (PTT) not as file
+      // @ts-expect-error - sendPtt option exists but not in type definitions
+      const message = await this.client.sendMessage(chatId, media, { sendPtt: true });
 
       return {
         messageId: message.id._serialized,
